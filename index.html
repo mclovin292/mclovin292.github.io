@@ -3,40 +3,198 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Plataforma de Trocas Estudantis</title>
+  <title>Plataforma de Trocas</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-6">
   <div class="container mx-auto max-w-3xl">
     <h1 class="text-3xl font-bold text-indigo-700 mb-4 text-center">Plataforma de Trocas Estudantis</h1>
 
-    <p class="mb-4 text-gray-700 text-center">Exemplo funcional de página publicada com GitHub Pages!</p>
+    <!-- Navegação -->
+    <div class="flex justify-center gap-4 mb-6">
+      <button id="showAll" class="px-4 py-2 bg-indigo-600 text-white rounded">Todos os Itens</button>
+      <button id="showMine" class="px-4 py-2 bg-gray-300 text-gray-800 rounded">Meus Itens</button>
+    </div>
 
     <!-- Filtros -->
     <div class="flex flex-col md:flex-row gap-4 mb-4">
-      <input type="text" placeholder="Pesquisar por nome..." class="flex-1 border p-2 rounded">
-      <select class="border p-2 rounded w-full md:w-1/3">
+      <input type="text" id="searchInput" placeholder="Pesquisar por nome..." class="flex-1 border p-2 rounded">
+      <select id="filterCategory" class="border p-2 rounded w-full md:w-1/3">
         <option value="">Todas as Categorias</option>
         <option value="Livros">Livros</option>
         <option value="Material Escolar">Material Escolar</option>
         <option value="Roupas">Roupas</option>
+        <option value="Tecnologia">Tecnologia</option>
+        <option value="Acessórios">Acessórios</option>
+        <option value="Esportes">Esportes</option>
+        <option value="Jogos / Brinquedos">Jogos / Brinquedos</option>
+        <option value="Móveis / Decoração">Móveis / Decoração</option>
+        <option value="Eletrônicos">Eletrônicos</option>
+        <option value="Outros">Outros</option>
       </select>
     </div>
 
-    <!-- Exemplo de item -->
-    <div class="bg-white p-4 rounded shadow">
-      <div class="flex justify-between items-center mb-2">
-        <h3 class="text-lg font-bold text-indigo-800">Calculadora Científica</h3>
-        <span class="text-sm px-2 py-1 rounded bg-blue-100 text-blue-800">Tecnologia</span>
-      </div>
-      <p class="text-gray-700 mb-2">Calculadora em ótimo estado. Modelo FX-82MS.</p>
-      <div class="text-sm text-gray-600 mb-2">
-        <span><i class="fas fa-user mr-1"></i>João Silva</span> |
-        <span><i class="fas fa-phone-alt mr-1"></i>(11) 99999-9999</span> |
-        <span><i class="far fa-clock mr-1"></i>25/06/2025</span>
-      </div>
-    </div>
+    <!-- Formulário -->
+    <form id="itemForm" class="space-y-4 bg-white p-6 rounded shadow mb-6">
+      <input type="text" id="name" placeholder="Nome do item" class="w-full border p-2 rounded" required>
+      <textarea id="description" placeholder="Descrição" class="w-full border p-2 rounded" required></textarea>
+      <input type="text" id="owner" placeholder="Seu nome" class="w-full border p-2 rounded" required>
+      <input type="tel" id="phone" placeholder="Telefone para contato" class="w-full border p-2 rounded" required>
+      <select id="category" class="w-full border p-2 rounded">
+        <option value="Livros">Livros</option>
+        <option value="Material Escolar">Material Escolar</option>
+        <option value="Roupas">Roupas</option>
+        <option value="Tecnologia">Tecnologia</option>
+        <option value="Acessórios">Acessórios</option>
+        <option value="Esportes">Esportes</option>
+        <option value="Jogos / Brinquedos">Jogos / Brinquedos</option>
+        <option value="Móveis / Decoração">Móveis / Decoração</option>
+        <option value="Eletrônicos">Eletrônicos</option>
+        <option value="Outros">Outros</option>
+      </select>
+      <button type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 w-full">
+        Cadastrar Item
+      </button>
+    </form>
+
+    <!-- Lista de Itens -->
+    <div id="itemsContainer" class="space-y-4"></div>
   </div>
+
+  <!-- Firebase e script principal -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+    import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyARXtZCGgu37WSEAP1K0RAVAiVioBVqQN4",
+      authDomain: "trocasestudantis.firebaseapp.com",
+      databaseURL: "https://trocasestudantis-default-rtdb.firebaseio.com",
+      projectId: "trocasestudantis",
+      storageBucket: "trocasestudantis.appspot.com",
+      messagingSenderId: "92318565559",
+      appId: "1:92318565559:web:331a5a094a29f4c717b932"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const itemsRef = ref(db, 'itens');
+
+    let userId = localStorage.getItem("userId");
+    if (!userId) {
+      userId = "user_" + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem("userId", userId);
+    }
+
+    const form = document.getElementById('itemForm');
+    const itemsContainer = document.getElementById('itemsContainer');
+    const filterCategory = document.getElementById('filterCategory');
+    const searchInput = document.getElementById('searchInput');
+    const showAllBtn = document.getElementById('showAll');
+    const showMineBtn = document.getElementById('showMine');
+
+    let allItems = {};
+    let showingMyItems = false;
+
+    function getCategoryColor(category) {
+      const colors = {
+        "Livros": "bg-green-100 text-green-800",
+        "Material Escolar": "bg-yellow-100 text-yellow-800",
+        "Roupas": "bg-pink-100 text-pink-800",
+        "Tecnologia": "bg-blue-100 text-blue-800",
+        "Acessórios": "bg-purple-100 text-purple-800",
+        "Esportes": "bg-red-100 text-red-800",
+        "Jogos / Brinquedos": "bg-orange-100 text-orange-800",
+        "Móveis / Decoração": "bg-teal-100 text-teal-800",
+        "Eletrônicos": "bg-indigo-100 text-indigo-800",
+        "Outros": "bg-gray-100 text-gray-800"
+      };
+      return colors[category] || "bg-gray-100 text-gray-800";
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const item = {
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value,
+        owner: document.getElementById('owner').value,
+        phone: document.getElementById('phone').value,
+        date: new Date().toLocaleDateString(),
+        category: document.getElementById('category').value,
+        createdBy: userId
+      };
+      push(itemsRef, item).then(() => {
+        alert("Item cadastrado!");
+        form.reset();
+      });
+    });
+
+    onValue(itemsRef, (snapshot) => {
+      allItems = snapshot.val() || {};
+      renderItems();
+    });
+
+    showAllBtn.onclick = () => {
+      showingMyItems = false;
+      showAllBtn.classList.add('bg-indigo-600', 'text-white');
+      showMineBtn.classList.remove('bg-indigo-600', 'text-white');
+      renderItems();
+    };
+
+    showMineBtn.onclick = () => {
+      showingMyItems = true;
+      showMineBtn.classList.add('bg-indigo-600', 'text-white');
+      showAllBtn.classList.remove('bg-indigo-600', 'text-white');
+      renderItems();
+    };
+
+    filterCategory.onchange = renderItems;
+    searchInput.oninput = renderItems;
+
+    function renderItems() {
+      itemsContainer.innerHTML = '';
+      const entries = Object.entries(allItems);
+      const filtro = entries.filter(([id, item]) => {
+        const nomeOk = item.name.toLowerCase().includes(searchInput.value.toLowerCase());
+        const categoriaOk = filterCategory.value === '' || item.category === filterCategory.value;
+        const donoOk = !showingMyItems || item.createdBy === userId;
+        return nomeOk && categoriaOk && donoOk;
+      });
+
+      if (filtro.length === 0) {
+        itemsContainer.innerHTML = '<p class="text-gray-500">Nenhum item encontrado.</p>';
+        return;
+      }
+
+      filtro.forEach(([id, item]) => {
+        const div = document.createElement('div');
+        div.className = 'bg-white p-4 rounded shadow';
+        div.innerHTML = `
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-lg font-bold text-indigo-800">${item.name}</h3>
+            <span class="text-sm px-2 py-1 rounded ${getCategoryColor(item.category)}">${item.category}</span>
+          </div>
+          <p class="text-gray-700 mb-2">${item.description}</p>
+          <div class="text-sm text-gray-600 mb-2">
+            <span><i class="fas fa-user mr-1"></i>${item.owner}</span> |
+            <span><i class="fas fa-phone-alt mr-1"></i>${item.phone}</span> |
+            <span><i class="far fa-clock mr-1"></i>${item.date}</span>
+          </div>
+          ${item.createdBy === userId ? `<button data-id="${id}" class="delete-btn mt-2 text-red-600 hover:underline text-sm">Remover</button>` : ''}
+        `;
+        itemsContainer.appendChild(div);
+      });
+
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          if (confirm("Deseja realmente remover este item?")) {
+            remove(ref(db, `itens/${id}`));
+          }
+        });
+      });
+    }
+  </script>
 
   <!-- Ícones -->
   <script src="https://kit.fontawesome.com/0c0c8f5a5d.js" crossorigin="anonymous"></script>
